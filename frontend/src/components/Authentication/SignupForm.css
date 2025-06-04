@@ -1,0 +1,18 @@
+/* Fix react-phone-input-2 input so number starts after flag */
+.react-phone-input-2 .form-control {
+  padding-left: 48px !important;
+}
+
+.react-phone-input-2 .flag-dropdown {
+  left: 0;
+}
+
+.react-phone-input-2 input.phone-input {
+  padding-left: 48px !important;
+}
+
+/* Optional: Make sure the input is not overlapped by the flag */
+.react-phone-input-2 .form-control {
+  position: relative;
+  z-index: 1;
+}
