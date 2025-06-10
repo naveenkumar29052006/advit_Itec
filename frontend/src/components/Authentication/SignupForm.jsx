@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
 import { Country, State } from "country-state-city";
@@ -25,8 +25,10 @@ const SignupForm = ({ onSignup, toggleForm }) => {
         username: "",
         email: "",
         phoneNumber: "",
-        countryCode: "",
-        countryName: "",
+        phoneCountryCode: "", // Separate phone country code
+        phoneCountryName: "", // Separate phone country name
+        countryCode: "", // This is for location
+        countryName: "", // This is for location
         stateCode: "",
         stateName: "",
         password: "",
@@ -51,6 +53,30 @@ const SignupForm = ({ onSignup, toggleForm }) => {
     // Loading state for form submission
     const [isLoading, setIsLoading] = useState(false);
 
+    // For custom country code dropdown
+    const [phoneCountrySearch, setPhoneCountrySearch] = useState("");
+    const [showPhoneCountryModal, setShowPhoneCountryModal] = useState(false);
+    const phoneCountryModalRef = useRef(null);
+
+    // For location country dropdown
+    const [locationCountrySearch, setLocationCountrySearch] = useState("");
+    const [showLocationCountryModal, setShowLocationCountryModal] = useState(false);
+    const locationCountryModalRef = useRef(null);
+
+    // Filtered countries for search
+    const filteredPhoneCountries = countries.filter(
+      (country) =>
+        country.name.toLowerCase().includes(phoneCountrySearch.toLowerCase()) ||
+        country.phonecode.includes(phoneCountrySearch) ||
+        country.isoCode.toLowerCase().includes(phoneCountrySearch.toLowerCase())
+    );
+
+    const filteredLocationCountries = countries.filter(
+      (country) =>
+        country.name.toLowerCase().includes(locationCountrySearch.toLowerCase()) ||
+        country.isoCode.toLowerCase().includes(locationCountrySearch.toLowerCase())
+    );
+
     // ======== DATA LOADING ========
 
     // Load all countries on component mount
@@ -68,6 +94,26 @@ const SignupForm = ({ onSignup, toggleForm }) => {
             setStates([]);
         }
     }, [formData.countryCode]);
+
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (showPhoneCountryModal && 
+            phoneCountryModalRef.current && 
+            !phoneCountryModalRef.current.contains(event.target)) {
+          setShowPhoneCountryModal(false);
+        }
+        if (showLocationCountryModal && 
+            locationCountryModalRef.current && 
+            !locationCountryModalRef.current.contains(event.target)) {
+          setShowLocationCountryModal(false);
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, [showPhoneCountryModal, showLocationCountryModal]);
 
     // ======== EVENT HANDLERS ========
 
@@ -153,6 +199,19 @@ const SignupForm = ({ onSignup, toggleForm }) => {
             stateCode: stateCode,
             stateName: selectedState?.name || "",
         }));
+    };
+
+    // Handle location country selection
+    const handleLocationCountrySelect = (country) => {
+        setFormData(prev => ({
+            ...prev,
+            countryCode: country.isoCode,
+            countryName: country.name,
+            stateCode: "",
+            stateName: ""
+        }));
+        setLocationCountrySearch("");
+        setShowLocationCountryModal(false);
     };
 
     // ======== VALIDATION FUNCTIONS ========
@@ -325,6 +384,22 @@ const SignupForm = ({ onSignup, toggleForm }) => {
         }
     };
 
+    // Helper to get country dial code by isoCode
+    const getCountryDialCode = (isoCode) => {
+        const country = countries.find(c => c.isoCode === isoCode);
+        return country ? `+${country.phonecode}` : '';
+    };
+
+    // Helper to get flag emoji from country code
+    const getFlagEmoji = (countryCode) => {
+      if (!countryCode) return "";
+      return countryCode
+        .toUpperCase()
+        .replace(/./g, (char) =>
+          String.fromCodePoint(127397 + char.charCodeAt())
+        );
+    };
+
     // ======== COMPONENT RENDERING ========
     return (
         <div className="auth-form">
@@ -366,53 +441,125 @@ const SignupForm = ({ onSignup, toggleForm }) => {
                     )}
                 </div>
 
-                {/* Phone number with international format */}
-                <div className="form-group">
-                    <label htmlFor="phoneNumber">Phone Number *</label>
-                    <PhoneInput
-                        country={"us"}
-                        value={formData.phoneNumber}
-                        onChange={handlePhoneChange}
-                        enableSearch={true}
-                        countryCodeEditable={false}
-                        specialLabel={""}
-                        inputProps={{
-                            name: "phoneNumber",
-                            required: true,
-                            className: "phone-input",
-                        }}
-                        disableCountryCode={false}
-                        showCountryNameInList={true}
-                        autoFormat={true}
-                        preferredCountries={["us", "ca", "gb", "in"]}
-                        enableAreaCodes={false}
-                        searchPlaceholder="Search countries..."
+                {/* Phone number with popup country code selector */}
+                <div className="form-group phone-group">
+                  <div className="country-code-box" onClick={() => setShowPhoneCountryModal(true)}>
+                    <span className="country-flag">
+                      {formData.phoneCountryCode ? getFlagEmoji(formData.phoneCountryCode) : '🌐'}
+                    </span>
+                    <span className="country-code-value">
+                      {formData.phoneCountryCode ? 
+                        `+${countries.find(c => c.isoCode === formData.phoneCountryCode)?.phonecode || '00'}` : 
+                        '+00'}
+                    </span>
+                  </div>
+                  
+                  <div className="phone-number-box">
+                    <input
+                      type="tel"
+                      id="phoneNumber"
+                      name="phoneNumber"
+                      value={formData.phoneNumber}
+                      onChange={handleChange}
+                      placeholder="Phone number"
+                      required
+                      maxLength={20}
                     />
-                    {errors.phone && (
-                        <span className="error-message">{errors.phone}</span>
-                    )}
+                  </div>
                 </div>
+
+                {/* Country Code Selection Modal */}
+                {showPhoneCountryModal && (
+                  <div className="country-code-modal-overlay">
+                    <div className="country-code-modal" ref={phoneCountryModalRef}>
+                      <div className="modal-header">
+                        <h3>Select Country Code</h3>
+                        <input
+                          type="text"
+                          placeholder="Search country or code..."
+                          value={phoneCountrySearch}
+                          onChange={(e) => setPhoneCountrySearch(e.target.value)}
+                          className="country-search-input"
+                        />
+                      </div>
+                      <div className="country-list">
+                        {filteredPhoneCountries.map((country) => (
+                          <div
+                            key={country.isoCode}
+                            className="country-item"
+                            onClick={() => {
+                              const phoneWithoutCode = formData.phoneNumber.replace(/^\+\d+/, '').replace(/^0+/, '');
+                              setFormData(prev => ({
+                                ...prev,
+                                phoneCountryCode: country.isoCode,
+                                phoneCountryName: country.name,
+                                phoneNumber: `+${country.phonecode}${phoneWithoutCode}`
+                              }));
+                              setShowPhoneCountryModal(false);
+                              setPhoneCountrySearch("");
+                            }}
+                          >
+                            <span>{country.name}</span>
+                            <span>+{country.phonecode}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {errors.phone && (
+                  <span className="error-message">{errors.phone}</span>
+                )}
 
                 {/* Country and State selection */}
                 <div className="location-fields">
                     <div className="form-group">
                         <label htmlFor="countryCode">Country</label>
-                        <select
-                            id="countryCode"
-                            name="countryCode"
-                            value={formData.countryCode}
-                            onChange={handleChange}
-                            required
-                        >
-                            <option value="">Select Country</option>
-                            {countries.map((country) => (
-                                <option key={country.isoCode} value={country.isoCode}>
-                                    {country.name}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="custom-select-wrapper">
+                          <div 
+                            className="selected-country" 
+                            onClick={() => setShowLocationCountryModal(true)}
+                          >
+                            <span className="flag-emoji">
+                              {formData.countryCode ? getFlagEmoji(formData.countryCode) : '🌐'}
+                            </span>
+                            <span className="country-name">
+                              {formData.countryName || 'Select Country'}
+                            </span>
+                          </div>
+                          {showLocationCountryModal && (
+                            <div className="country-modal">
+                              <input
+                                type="text"
+                                value={locationCountrySearch}
+                                onChange={(e) => setLocationCountrySearch(e.target.value)}
+                                placeholder="Search country..."
+                                className="country-search-input"
+                                autoFocus
+                              />
+                              <div className="country-list" ref={locationCountryModalRef}>
+                                {filteredLocationCountries.length === 0 ? (
+                                  <div className="no-results">No results found</div>
+                                ) : (
+                                  filteredLocationCountries.map((country) => (
+                                    <div
+                                      key={country.isoCode}
+                                      className="country-item"
+                                      onClick={() => {
+                                        handleLocationCountrySelect(country);
+                                      }}
+                                    >
+                                      <span className="flag-emoji">{getFlagEmoji(country.isoCode)}</span>
+                                      <span className="country-name">{country.name}</span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                     </div>
-
                     <div className="form-group">
                         <label htmlFor="stateCode">State/Province</label>
                         <select

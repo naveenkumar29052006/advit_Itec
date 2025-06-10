@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import MessageList from "../MessageList/MessageList";
 import { SendIcon } from "../icons/Icons";
 import AuthenticationSection from "../Authentication/AuthenticationSection";
+import { chatService } from "../../services/api";
 
 /**
  * MessagesSection Component
@@ -15,268 +16,253 @@ import AuthenticationSection from "../Authentication/AuthenticationSection";
  * 
  * @param {Array} messages - Legacy parameter, now using state-based conversations
  */
-const MessagesSection = ({ messages, isLoggedIn, onAuthSuccess }) => {
-    // ======== STATE MANAGEMENT ========
-
-    // Sample conversation threads with message history
-    const [conversations, setConversations] = useState([
-        {
-            id: 1,
-            title: "Account Settings Help",
-            lastMessage: "What specific setting are you looking for?",
-            timestamp: "10:33 AM",
-            messages: [
-                {
-                    sender: "system",
-                    senderName: "Chatbot",
-                    time: "10:30 AM",
-                    content: "Hello! How can I assist you today?",
-                },
-                {
-                    sender: "user",
-                    senderName: "You",
-                    time: "10:32 AM",
-                    content: "I need help with my account settings.",
-                },
-                {
-                    sender: "system",
-                    senderName: "Chatbot",
-                    time: "10:33 AM",
-                    content: "Sure, what specific setting are you looking for?",
-                },
-            ]
-        },
-        {
-            id: 2,
-            title: "Subscription Inquiry",
-            lastMessage: "We've sent the invoice to your email.",
-            timestamp: "Yesterday",
-            messages: [
-                {
-                    sender: "system",
-                    senderName: "Chatbot",
-                    time: "Yesterday",
-                    content: "Welcome back! How can I help you today?",
-                },
-                {
-                    sender: "user",
-                    senderName: "You",
-                    time: "Yesterday",
-                    content: "I'd like to know about the premium subscription options.",
-                },
-                {
-                    sender: "system",
-                    senderName: "Chatbot",
-                    time: "Yesterday",
-                    content: "We offer several plans starting at $9.99/month. Would you like me to send you the details?",
-                },
-                {
-                    sender: "user",
-                    senderName: "You",
-                    time: "Yesterday",
-                    content: "Yes please, and can you include pricing for annual plans?",
-                },
-                {
-                    sender: "system",
-                    senderName: "Chatbot",
-                    time: "Yesterday",
-                    content: "We've sent the invoice to your email.",
-                },
-            ]
-        },
-        {
-            id: 3,
-            title: "Technical Support",
-            lastMessage: "The issue has been resolved.",
-            timestamp: "Jun 15",
-            messages: [
-                {
-                    sender: "system",
-                    senderName: "Support Agent",
-                    time: "Jun 15",
-                    content: "Hello, I understand you're having technical difficulties?",
-                },
-                {
-                    sender: "user",
-                    senderName: "You",
-                    time: "Jun 15",
-                    content: "Yes, I can't access my reports dashboard.",
-                },
-                {
-                    sender: "system",
-                    senderName: "Support Agent",
-                    time: "Jun 15",
-                    content: "I'll help you troubleshoot that. Can you tell me what error message you're seeing?",
-                },
-                {
-                    sender: "system",
-                    senderName: "Support Agent",
-                    time: "Jun 15",
-                    content: "The issue has been resolved.",
-                },
-            ]
-        }
-    ]);
-
-    // Currently active conversation (null when showing the conversation list)
+const MessagesSection = ({ isLoggedIn, onAuthSuccess }) => {
+    // State for all conversations
+    const [conversations, setConversations] = useState([]);
     const [activeConversation, setActiveConversation] = useState(null);
-
-    // New message being composed by the user
     const [newMessage, setNewMessage] = useState("");
+    const [isBotTyping, setIsBotTyping] = useState(false);
+    const [showFeedback, setShowFeedback] = useState(false);
+    const [pendingQaId, setPendingQaId] = useState(null);
+    const [rating, setRating] = useState(0);
+    const [suggestion, setSuggestion] = useState("");
+    const messageListRef = useRef(null);
 
-    // ======== EVENT HANDLERS ========
-
-    /**
-     * Send a new message in the active conversation
-     * Adds user message and simulates an automated response
-     */
-    const handleSendMessage = () => {
-        // Validate input and active conversation
-        if (newMessage.trim() === "" || !activeConversation) return;
-
-        // Update conversations with the new user message
-        const updatedConversations = conversations.map(conv => {
-            if (conv.id === activeConversation.id) {
-                // Format current time for the message timestamp
-                const currentTime = new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
-
-                // Add user's message to conversation
-                const updatedMessages = [
-                    ...conv.messages,
-                    {
-                        sender: "user",
-                        senderName: "You",
-                        time: currentTime,
-                        content: newMessage
-                    }
-                ];
-
-                // Update conversation metadata
-                return {
-                    ...conv,
-                    lastMessage: newMessage,
-                    timestamp: "Just now",
-                    messages: updatedMessages
-                };
+    useEffect(() => {
+        if (isLoggedIn) {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user?.email) {
+                chatService.getConversations(user.email)
+                    .then((data) => {
+                        setConversations(data || []);
+                        if (data && data.length > 0) {
+                            setActiveConversation(data[0]);
+                        }
+                    })
+                    .catch((error) => {
+                        console.error('Error fetching conversations:', error);
+                        setConversations([]);
+                        setActiveConversation(null);
+                    });
             }
-            return conv;
+        }
+    }, [isLoggedIn]);
+
+    useEffect(() => {
+        if (activeConversation && messageListRef.current) {
+            messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
+        }
+    }, [activeConversation?.messages?.length, isBotTyping]);
+
+    const handleSendMessage = async () => {
+        if (newMessage.trim() === "" || !activeConversation) return;
+        
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userEmail = user?.email;
+        
+        if (!userEmail) {
+            alert('Please log in to send messages');
+            return;
+        }
+
+        const userMessage = {
+            sender: "user",
+            senderName: "You",
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            content: newMessage
+        };
+
+        // Update UI immediately with user message
+        setConversations(convs => {
+            const updated = convs.map(conv =>
+                conv.id === activeConversation.id ? {
+                    ...conv,
+                    messages: [...conv.messages, userMessage]
+                } : conv
+            );
+            setActiveConversation(updated.find(c => c.id === activeConversation.id));
+            return updated;
         });
 
-        // Update state and clear input field
-        setConversations(updatedConversations);
         setNewMessage("");
+        setIsBotTyping(true);
 
-        // Simulate automated response after a brief delay
-        simulateResponse(activeConversation);
-    };
-
-    /**
-     * Simulate a response from the support system
-     * @param {Object} conversation - The conversation to respond to
-     */
-    const simulateResponse = (conversation) => {
-        setTimeout(() => {
-            // Create bot response
+        try {
+            const response = await chatService.sendMessage(
+                newMessage, 
+                userEmail,
+                activeConversation.id
+            );
+            
+            setIsBotTyping(false);
+            
             const botResponse = {
                 sender: "system",
-                senderName: conversation.messages[0].senderName,
-                time: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                }),
-                content: "Thank you for your message. A support agent will respond shortly."
+                senderName: "Chatbot",
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                content: response.response,
+                id: response.message_id
             };
 
-            // Add response to conversation
-            const updatedWithResponse = conversations.map(conv => {
-                if (conv.id === conversation.id) {
-                    return {
+            // Update conversation with bot response and session ID if new
+            setConversations(convs => {
+                const updated = convs.map(conv =>
+                    conv.id === activeConversation.id ? {
                         ...conv,
-                        lastMessage: botResponse.content,
-                        timestamp: "Just now",
+                        id: conv.id || response.session_id,
                         messages: [...conv.messages, botResponse]
-                    };
-                }
-                return conv;
+                    } : conv
+                );
+                setActiveConversation(updated.find(c => c.id === (activeConversation.id || response.session_id)));
+                return updated;
             });
 
-            // Update state and active conversation
-            setConversations(updatedWithResponse);
-            setActiveConversation(updatedWithResponse.find(c => c.id === conversation.id));
-        }, 1000); // 1-second delay for realism
+            // Set pending QA ID for feedback
+            setPendingQaId(response.message_id);
+            
+            // Show feedback modal after delay
+            setTimeout(() => {
+                setShowFeedback(true);
+            }, 20000);
+        } catch (error) {
+            setIsBotTyping(false);
+            console.error('Chat error:', error);
+            const errorMessage = {
+                sender: "system",
+                senderName: "Chatbot",
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                content: error.message || "Sorry, I encountered an error. Please try again."
+            };
+
+            setConversations(convs => {
+                const updated = convs.map(conv =>
+                    conv.id === activeConversation.id ? {
+                        ...conv,
+                        messages: [...conv.messages, errorMessage]
+                    } : conv
+                );
+                setActiveConversation(updated.find(c => c.id === activeConversation.id));
+                return updated;
+            });
+        }
     };
 
-    /**
-     * Handle Enter key press in message input
-     * @param {Event} e - Keyboard event
-     */
     const handleKeyPress = (e) => {
         if (e.key === 'Enter') {
             handleSendMessage();
         }
     };
 
-    /**
-     * Create a new conversation thread
-     */
-    const startNewConversation = () => {
-        const newConv = {
-            id: Date.now(),
-            title: "New Conversation",
-            lastMessage: "How can we help you today?",
-            timestamp: "Just now",
-            messages: [{
-                sender: "system",
-                senderName: "Chatbot",
-                time: new Date().toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                }),
-                content: "How can we help you today?"
-            }]
-        };
+    const startNewConversation = async () => {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userEmail = user?.email;
+        if (!userEmail) {
+            alert('Please log in to start a new chat');
+            return;
+        }
 
-        // Add new conversation to the top of the list
-        setConversations([newConv, ...conversations]);
+        try {
+            const newConv = {
+                id: null,  // Will be set after first message
+                title: 'New Chat',
+                messages: [{
+                    sender: "system",
+                    senderName: "Chatbot",
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    content: "Welcome to Advit iTec chat support! How may I help you today?"
+                }]
+            };
 
-        // Activate the new conversation
-        setActiveConversation(newConv);
+            setConversations(prev => [newConv, ...prev]);
+            setActiveConversation(newConv);
+            setNewMessage("");
+        } catch (error) {
+            console.error('Error starting new chat:', error);
+            alert("Failed to start a new chat. Please try again.");
+        }
     };
 
-    // ======== COMPONENT RENDERING ========
+    const handleDeleteConversation = async (conversationId) => {
+        try {
+            await chatService.deleteConversation(conversationId);
+            setConversations(convs => convs.filter(conv => conv.id !== conversationId));
+            if (activeConversation && activeConversation.id === conversationId) {
+                setActiveConversation(null);
+            }
+        } catch (error) {
+            alert(error);
+        }
+    };
+
+    // Submit feedback for the last bot response
+    const handleFeedbackSubmit = async () => {
+        if (!pendingQaId || rating === 0) {
+            alert("Please select a rating before submitting.");
+            return;
+        }
+        try {
+            await chatService.submitFeedback(pendingQaId, rating, suggestion);
+            setShowFeedback(false);
+            setRating(0);
+            setSuggestion("");
+            setPendingQaId(null);
+            alert("Thank you for your feedback!");
+        } catch (error) {
+            alert(error || "Failed to submit feedback. Please try again.");
+        }
+    };
+
+    // Handler to email chat history for the active conversation
+    const handleEmailHistory = async () => {
+        if (!activeConversation) return;
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const userEmail = user?.email;
+        if (!userEmail) {
+            alert('Please log in to email chat history.');
+            return;
+        }
+        try {
+            await chatService.emailChatHistory(userEmail, activeConversation.id);
+            alert('Chat history emailed successfully!');
+        } catch (error) {
+            alert(error || 'Failed to email chat history.');
+        }
+    };
+
     if (!isLoggedIn) {
         return <AuthenticationSection onLogin={onAuthSuccess} onSignup={onAuthSuccess} />;
     }
 
-    return (
-        <div className="messages-section">
-            {!activeConversation ? (
-                // Conversation List View
-                <div className="conversations-list">
-                    <h2>Your Conversations</h2>
+    const fadeClass = "fade-in-section";
 
-                    {/* List of existing conversations */}
+    return (
+        <div className={`messages-section ${fadeClass}`}>
+            {!activeConversation ? (
+                <div className={`conversations-list ${fadeClass}`}>
+                    <h2>Your Conversations</h2>
                     <div className="conversation-items">
                         {conversations.map(conversation => (
                             <div
                                 key={conversation.id}
-                                className="conversation-item"
+                                className={`conversation-item ${fadeClass}`}
                                 onClick={() => setActiveConversation(conversation)}
                             >
                                 <div className="conversation-title">{conversation.title}</div>
-                                <div className="conversation-preview">{conversation.lastMessage}</div>
-                                <div className="conversation-timestamp">{conversation.timestamp}</div>
+                                <div className="conversation-preview">{conversation.messages.length > 0 ? conversation.messages[conversation.messages.length-1].content : ''}</div>
+                                <button
+                                    className="delete-conversation-button"
+                                    onClick={e => { e.stopPropagation(); handleDeleteConversation(conversation.id); }}
+                                    style={{ marginLeft: 8, color: 'red', background: 'none', border: 'none', cursor: 'pointer' }}
+                                    title="Delete conversation"
+                                >
+                                    🗑️
+                                </button>
                             </div>
                         ))}
                     </div>
-
-                    {/* New conversation button */}
                     <div className="new-conversation">
                         <button
-                            className="new-chat-button"
+                            className={`new-chat-button ${fadeClass}`}
                             onClick={startNewConversation}
                         >
                             Start New Chat
@@ -284,9 +270,7 @@ const MessagesSection = ({ messages, isLoggedIn, onAuthSuccess }) => {
                     </div>
                 </div>
             ) : (
-                // Active Conversation View
-                <div className="active-conversation">
-                    {/* Conversation header with back button */}
+                <div className={`active-conversation ${fadeClass}`}>
                     <div className="conversation-header">
                         <button
                             className="back-button"
@@ -295,13 +279,27 @@ const MessagesSection = ({ messages, isLoggedIn, onAuthSuccess }) => {
                             ← Back
                         </button>
                         <h3>{activeConversation.title}</h3>
+                        {/* Show email status if available */}
+                        {typeof activeConversation.email_status !== 'undefined' && (
+                            <span style={{ marginLeft: 16, fontSize: 14, color: activeConversation.email_status === 1 ? 'green' : '#999' }}>
+                                {activeConversation.email_status === 1 ? '📧 Emailed' : 'Not emailed'}
+                            </span>
+                        )}
                     </div>
-
-                    {/* Message history */}
-                    <MessageList messages={activeConversation.messages} />
-
-                    {/* Message input area */}
-                    <div className="message-input-container">
+                    <div className="message-list animated-message-list" ref={messageListRef}>
+                        <MessageList 
+                            messages={activeConversation.messages} 
+                            onEmailHistory={handleEmailHistory}
+                        />
+                        {isBotTyping && (
+                            <div className="bot-typing-indicator">
+                                <span className="dot"></span>
+                                <span className="dot"></span>
+                                <span className="dot"></span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="message-input-container animated-input" style={{ position: 'sticky', bottom: 0, background: '#fff', zIndex: 2, paddingTop: 10 }}>
                         <input
                             type="text"
                             placeholder="Type your message..."
@@ -312,6 +310,35 @@ const MessagesSection = ({ messages, isLoggedIn, onAuthSuccess }) => {
                         />
                         <button className="send-button" onClick={handleSendMessage}>
                             <SendIcon />
+                        </button>
+                    </div>
+                </div>
+            )}
+            {showFeedback && (
+                <div className="feedback-modal">
+                    <div className="feedback-content">
+                        <h4>Rate this answer</h4>
+                        <div className="star-rating">
+                            {[1,2,3,4,5].map(star => (
+                                <span
+                                    key={star}
+                                    className={star <= rating ? 'star filled' : 'star'}
+                                    onClick={() => setRating(star)}
+                                    style={{ cursor: 'pointer', fontSize: 24 }}
+                                >★</span>
+                            ))}
+                        </div>
+                        <textarea
+                            placeholder="Any suggestions? (optional)"
+                            value={suggestion}
+                            onChange={e => setSuggestion(e.target.value)}
+                            style={{ width: '100%', marginTop: 8 }}
+                        />
+                        <button onClick={handleFeedbackSubmit} style={{ marginTop: 8 }}>
+                            Submit Feedback
+                        </button>
+                        <button onClick={() => setShowFeedback(false)} style={{ marginLeft: 8 }}>
+                            Cancel
                         </button>
                     </div>
                 </div>

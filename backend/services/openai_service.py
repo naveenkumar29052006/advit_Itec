@@ -1,22 +1,15 @@
-from openai import AsyncOpenAI
 import os
 from dotenv import load_dotenv
-from typing import List, Dict, Any
-import json
+import logging
+from fastapi import HTTPException
+import google.generativeai as genai
 
-load_dotenv()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Load environment variables
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "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")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-
-# OpenRouter headers
-HEADERS = {
-    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-    "HTTP-Referer": "https://advithitec.in/",  # Advit ITEC website
-    "X-Title": "Advit ITEC Chatbot",  # Brand title
-    "Content-Type": "application/json"
-}
+# Always load .env from project root
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 SYSTEM_PROMPT = """You are an expert tax and finance chatbot of advit itec, specializing in GST filing, income tax, financial planning, and accounting services.
 
@@ -44,50 +37,39 @@ Remember:
 - Suggest proper documentation requirements
 - Explain filing deadlines and compliance requirements
 
+**Formatting Instructions:**
+- ALWAYS use markdown for your output.
+- Use bullet points or numbered lists for all answers.
+- Add TWO line breaks between each point or paragraph for clear separation.
+- Never return a single long paragraph.
+- Never combine multiple points in one paragraph.
+- Each point must be on its own line, separated by two line breaks.
+- Use bold or italics for emphasis where appropriate.
+- Mimic the style and clarity of ChatGPT.
+
 Do not provide responses in any language other than English.
 Important: Always include disclaimers for complex tax matters and recommend consulting a certified tax professional for specific cases."""
 
-async def get_chat_response(messages: List[Dict[str, str]]) -> str:
-    try:
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                OPENROUTER_URL,
-                headers=HEADERS,
-                json={
-                    "model": "openai/gpt-3.5-turbo-16k",
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        *messages
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 2000,
-                    "presence_penalty": 0.6,
-                    "frequency_penalty": 0.3
-                }
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    print(f"OpenRouter API error: {error_text}")
-                    raise Exception(f"API error {response.status}: {error_text}")
-                
-                data = await response.json()
-                response_text = data['choices'][0]['message']['content']
-                return response_text
-                
-    except Exception as e:
-        print(f"Error in OpenRouter API call: {e}")
-        return "I apologize, but I encountered an error. Please try again."
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    logger.error("GEMINI_API_KEY is not set in environment variables.")
+    raise RuntimeError("GEMINI_API_KEY is not set in environment variables.")
 
-async def get_openai_response(user_query: str) -> str:
-    """Main entry point for getting responses from the chatbot"""
+genai.configure(api_key=GEMINI_API_KEY)
+
+def get_openai_response(user_query: str) -> str:
+    """Synchronous Gemini API call for FastAPI route (blocking, but reliable)."""
+    logger.info(f"Processing query: {user_query[:100]}...")
     try:
-        # Convert user query to messages format
-        messages = [{"role": "user", "content": user_query}]
-        print(f"Processing query: {user_query}")
-        
-        response = await get_chat_response(messages)
-        return response
+        model = genai.GenerativeModel("gemini-1.5-flash-latest")
+        prompt = f"{SYSTEM_PROMPT}\n\nUser: {user_query}"
+        response = model.generate_content(prompt)
+        if hasattr(response, "text"):
+            logger.info(f"Gemini reply: {response.text}")
+            return response.text
+        else:
+            logger.error(f"Unexpected Gemini response format: {response}")
+            raise HTTPException(status_code=502, detail="Gemini API returned unexpected response format")
     except Exception as e:
-        print(f"Error in get_openai_response: {e}")
-        return "I apologize, but I encountered an error. Please try again."
+        logger.error(f"Error in get_openai_response: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

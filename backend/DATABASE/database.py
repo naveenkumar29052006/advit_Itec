@@ -5,24 +5,29 @@ import os
 from dotenv import load_dotenv
 import logging
 from typing import Optional
+from pathlib import Path
+
+# Get the project root directory
+ROOT_DIR = Path(__file__).parent.parent.parent
 
 # Load environment variables
-load_dotenv()
+load_dotenv(ROOT_DIR / ".env")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Database configuration
+
+
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', 'nn03092005neeA@'),
-    'database': os.getenv('DB_NAME', 'chatbot'),
-    'pool_name': 'chatbot_pool',
+    'host': 'localhost',
+    'user': 'root',
+    'password': 'nn03092005neeA@',
+    'database': 'chatbot',
+    'pool_name': 'mypool',
     'pool_size': 5
 }
-
 # Create connection pool
 try:
     connection_pool = mysql.connector.pooling.MySQLConnectionPool(**DB_CONFIG)
@@ -32,6 +37,11 @@ except Error as e:
     raise
 
 def get_db_connection():
+    """Get a database connection from the pool"""
+    print(f"DB_HOST: {os.getenv('DB_HOST')}")
+    print(f"DB_USER: {os.getenv('DB_USER')}")
+    print(f"DB_PASSWORD: {os.getenv('DB_PASSWORD')}")
+    print(f"DB_NAME: {os.getenv('DB_NAME')}")
     try:
         connection = connection_pool.get_connection()
         return connection
@@ -41,6 +51,7 @@ def get_db_connection():
 
 @contextmanager
 def get_db_cursor():
+    """Context manager for database cursor"""
     conn = None
     cursor = None
     try:
@@ -64,64 +75,55 @@ def get_db_cursor():
 
 def init_db():
     """Initialize the database with required tables"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
     try:
-        # Create users table with extended profile
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                email VARCHAR(255) UNIQUE NOT NULL,
-                name VARCHAR(100) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                phone VARCHAR(20),
-                country VARCHAR(100),
-                state VARCHAR(100),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        """)
-        conn.commit()
+        with get_db_cursor() as (cursor, conn):
+            # Create users table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    phone VARCHAR(20),
+                    country VARCHAR(100),
+                    state VARCHAR(100),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
 
-        # Create chat_sessions table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS chat_sessions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT,
-                start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                end_time TIMESTAMP NULL,
-                topic VARCHAR(100),
-                context TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        conn.commit()
+            # Create chat_conversations table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS chat_conversations (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    email_status ENUM('pending', 'sent', 'failed') DEFAULT 'pending',
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            """)
 
-        # Create qa_pairs table with enhanced tracking
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS qa_pairs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT,
-                session_id INT,
-                question TEXT NOT NULL,
-                answer TEXT NOT NULL,
-                category VARCHAR(50) DEFAULT 'general',
-                is_helpful BOOLEAN DEFAULT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                user_context TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (session_id) REFERENCES chat_sessions(id),
-                INDEX idx_user_session (user_id, session_id)
-            )
-        """)
-        conn.commit()
+            # Create qa_pairs table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS qa_pairs (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id INT NOT NULL,
+                    conversation_id INT NOT NULL,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    category VARCHAR(50) DEFAULT 'general',
+                    rating INT,
+                    suggestion TEXT,
+                    is_helpful BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id)
+                )
+            """)
 
-        print("Database initialized successfully")
-    except Error as e:
-        print(f"Error initializing database: {e}")
+            conn.commit()
+            logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing database: {e}")
         raise
-    finally:
-        cursor.close()
-        conn.close()
 

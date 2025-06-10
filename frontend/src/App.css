@@ -394,10 +394,34 @@ body {
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
 }
 .error-message {
-  color: #dc3545;
-  font-size: 14px;
-  margin-top: 5px;
-  display: block;
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: #ff4444;
+  color: white;
+  padding: 15px 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: slideIn 0.3s ease-out;
+}
+
+.error-message button {
+  background: none;
+  border: 1px solid white;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background-color 0.2s;
+}
+
+.error-message button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .password-requirements {
@@ -711,6 +735,182 @@ select:disabled {
   font-size: 14px;
   cursor: pointer;
   margin-right: 10px;
+}
+
+/* Animation for message list and input */
+.animated-message-list {
+  animation: fadeInUp 0.5s;
+}
+
+.animated-input {
+  animation: slideUp 0.4s;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Bot typing indicator styling */
+.bot-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 10px 0 0 0;
+  padding-left: 8px;
+  height: 24px;
+}
+
+.bot-typing-indicator .dot {
+  width: 8px;
+  height: 8px;
+  background: #b3b3b3;
+  border-radius: 50%;
+  display: inline-block;
+  animation: botTypingBlink 1.2s infinite both;
+}
+
+.bot-typing-indicator .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.bot-typing-indicator .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes botTypingBlink {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* Fade-in animation for smooth section transitions */
+.fade-in-section {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInSection 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes fadeInSection {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Feedback modal styles */
+.feedback-modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.feedback-content {
+  background: #fff;
+  padding: 24px 20px;
+  border-radius: 10px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.15);
+  min-width: 320px;
+  max-width: 90vw;
+}
+.star-rating {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 4px 0;
+}
+.star {
+  color: #ccc;
+  transition: color 0.2s;
+}
+.star.filled {
+  color: #f5b301;
+}
+.feedback-content textarea {
+  min-height: 48px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  padding: 6px;
+  font-size: 15px;
+  resize: vertical;
+}
+.feedback-content button {
+  background: var(--primary-color, #007bff);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 15px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.feedback-content button + button {
+  background: #eee;
+  color: #333;
+  margin-left: 8px;
+}
+
+/* Loading Overlay Styles */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 

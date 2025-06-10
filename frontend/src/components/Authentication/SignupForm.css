@@ -16,3 +16,168 @@
   position: relative;
   z-index: 1;
 }
+
+.form-group.phone-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.country-code-box {
+  width: 85px;
+  background: #f8f9fa;
+  border: 1px solid var(--light-gray);
+  border-radius: var(--border-radius);
+  padding: 8px 10px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  height: 42px;
+  transition: border-color 0.15s;
+}
+
+.country-code-box:hover {
+  border-color: var(--primary-color);
+}
+
+.country-code-value {
+  font-weight: 500;
+  flex: 1;
+  text-align: center;
+}
+
+.country-code-arrow {
+  color: #666;
+  font-size: 12px;
+}
+
+.country-code-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.country-code-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  width: 320px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  margin-bottom: 15px;
+}
+
+.modal-header h3 {
+  margin: 0 0 10px 0;
+}
+
+.country-search-input {
+  width: calc(100% - 24px);
+  margin: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.country-search-input:focus {
+  outline: none;
+  border-color: #0066cc;
+}
+
+.country-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-top: 4px;
+  z-index: 1000;
+}
+
+.country-list {
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.country-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 15px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.country-item:hover {
+  background-color: #f5f5f5;
+}
+
+.flag-emoji {
+  font-size: 1.2em;
+  min-width: 24px;
+}
+
+.country-name {
+  flex: 1;
+  font-size: 14px;
+}
+
+.no-results {
+  padding: 12px 16px;
+  color: #666;
+  text-align: center;
+  font-size: 14px;
+}
+
+/* Style for selected country display */
+.selected-country {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.selected-country:hover {
+  border-color: #0066cc;
+}
+
+.phone-number-box {
+  flex: 1;
+}
+
+.phone-number-box input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--light-gray);
+  border-radius: var(--border-radius);
+  font-size: 16px;
+  height: 42px;
+}
+
+.phone-number-box input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
